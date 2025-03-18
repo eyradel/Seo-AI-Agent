@@ -1265,7 +1265,7 @@ def main():
     # Main content area
     if st.session_state['analysis_complete']:
         # Show tabs for different sections
-        tab1, tab2, tab3, tab4 = st.tabs(["Analysis", "Recommendations", "Action Plan", "Agent Chat"])
+        tab1, tab2, tab3, tab4 = st.tabs(["Analysis", "Recommendations", "Action Plan", "New Job"])
         
         # Set active tab based on session state
         if st.session_state['current_tab'] == "analysis":
@@ -1292,6 +1292,7 @@ def main():
         with tab4:
             st.session_state['current_tab'] = "chat"
             # display_chat()
+            display_analysis_form()
     else:
         # Show analysis form
         display_analysis_form()

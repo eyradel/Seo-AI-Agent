@@ -11,6 +11,7 @@ from googleapiclient.discovery import build
 import os
 import concurrent.futures
 from bs4 import BeautifulSoup
+from google import genai
 
 
 # Set API keys (in a production environment, use environment variables or secure storage)
@@ -18,11 +19,7 @@ OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"] if "OPENAI_API_KEY" in st.secrets 
 GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"] if "GOOGLE_API_KEY" in st.secrets else os.environ.get("GOOGLE_API_KEY", "")
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"] if "GEMINI_API_KEY" in st.secrets else os.environ.get("GEMINI_API_KEY", "")
 
-try:
-    import google.generativeai as genai
-    GEMINI_AVAILABLE = True
-except ImportError:
-    GEMINI_AVAILABLE = False
+
 
 # UI Configuration
 def load_css():
@@ -540,8 +537,8 @@ class SEOAgent:
     def _analyze_with_gemini(self, title, content, keywords=None):
         """Analyze content quality using Google's Gemini API"""
         try:
-            model = genai.GenerativeModel('gemini-pro')
-            
+           
+            client = genai.Client(api_key=GEMINI_API_KEY)
             # Prepare prompt
             prompt = f"""
             Analyze this webpage content from an SEO perspective:
@@ -566,7 +563,10 @@ class SEOAgent:
             Return only valid JSON with these exact keys.
             """
             
-            response = model.generate_content(prompt)
+            response = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=prompt
+                )
             
             # Parse response
             response_text = response.text
@@ -1109,7 +1109,7 @@ class SEOAgent:
     
     def _generate_summary_with_gemini(self):
         """Generate summary using Google's Gemini API"""
-        model = genai.GenerativeModel('gemini-pro')
+        client = genai.Client(api_key=GEMINI_API_KEY)
         
         # Prepare summary data
         summary_data = {
@@ -1137,8 +1137,11 @@ class SEOAgent:
         
         Keep it concise and actionable.
         """
+        response = client.models.generate_content(
+            model="gemini-pro",
+            contents=summary_prompt,
+        )
         
-        response = model.generate_content(summary_prompt)
         return response.text
     
     def _generate_generic_summary(self):
@@ -1303,7 +1306,7 @@ def display_analysis_form():
     st.subheader("Website Analysis")
     
     with st.form("seo_analysis_form"):
-        url = st.text_input("Website URL", "https://example.com")
+        url = st.text_input("Website URL", "https://www.linkedin.com")
         
         col1, col2 = st.columns([3, 1])
         with col1:
@@ -1816,6 +1819,12 @@ def process_question_with_openai(agent, question):
 def process_question_with_gemini(agent, question):
     """Process a user question using Gemini API"""
     try:
+        # Configure the API client
+        genai.configure(api_key=GEMINI_API_KEY)
+        
+        # Create model instance
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        
         # Prepare context for the AI
         insights_summary = json.dumps(agent.insights, indent=2)
         recommendations_summary = json.dumps(agent.recommendations, indent=2)
@@ -1834,7 +1843,7 @@ def process_question_with_gemini(agent, question):
         Provide a helpful, concise response based only on the data provided. If the question cannot be answered with the available data, explain what information would be needed.
         """
         
-        model = genai.GenerativeModel('gemini-pro')
+        # Generate content using the model
         response = model.generate_content(prompt)
         
         return response.text

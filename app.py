@@ -150,7 +150,7 @@ def create_navbar():
        <nav class="navbar fixed-top navbar-expand-lg navbar-dark text-bold shadow-sm" >
             <a class="navbar-brand" href="#" target="_blank">
                 <img src=""  style='width:50px'>
-               AI SEO Agent 🤖
+               AI SEO Agent 
             </a>
         </nav>
         """,

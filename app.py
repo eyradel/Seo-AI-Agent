@@ -1190,8 +1190,7 @@ class SEOAgent:
 # Main Streamlit App
 def main():
     # Load CSS and create navbar
-    load_css()
-    create_navbar()
+    
     
     st.title("AI SEO Agent")
     st.write("Your autonomous SEO analysis and optimization assistant")
@@ -1858,4 +1857,5 @@ if __name__ == '__main__':
         main()
     else:
         st.warning("Please enter the correct password to access the app.")
-    
+    load_css()
+    create_navbar()

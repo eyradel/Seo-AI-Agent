@@ -1852,4 +1852,10 @@ def process_question_with_gemini(agent, question):
         return f"Sorry, I encountered an error while processing your question: {str(e)}"
 
 if __name__ == '__main__':
+    password = st.text_input("Enter password to access the app:", type="password")
+    if password == "Napster":
+        st.session_state['password'] = password
+        st.success("Password accepted!")
+    else:
+        st.warning("Please enter the correct password to access the app.")
     main()

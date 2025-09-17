@@ -13,6 +13,14 @@ import concurrent.futures
 from bs4 import BeautifulSoup
 from google import genai
 
+# App configuration
+st.set_page_config(
+    page_title="AI SEO Agent",
+    page_icon="🔍",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
 
 # Set API keys (in a production environment, use environment variables or secure storage)
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"] if "OPENAI_API_KEY" in st.secrets else os.environ.get("OPENAI_API_KEY", "")
@@ -177,7 +185,7 @@ class SEOAgent:
         # Set up agent capabilities
         self.capabilities = {
             "technical_seo": True,
-            "content_analysis": bool(self.openai_api_key or self.gemini_api_key),
+            "content_analysis": bool(self.openai_api_key),
             "competitor_analysis": bool(self.google_api_key),
             "keyword_research": bool(self.google_api_key or self.openai_api_key or self.gemini_api_key)
         }
@@ -466,8 +474,8 @@ class SEOAgent:
     
     def _enhance_with_ai(self, results, keyword_list, depth):
         """Enhance analysis with AI content scoring"""
-        if not self.openai_api_key and not self.gemini_api_key:
-            self.add_message("agent", "⚠️ AI content analysis unavailable. No API keys provided.")
+        if not self.openai_api_key:
+            self.add_message("agent", "⚠️ AI content analysis unavailable. Add an OpenAI API key.")
             return
         
         self.add_message("agent", "Performing AI content analysis...")
@@ -475,10 +483,7 @@ class SEOAgent:
         for i, result in enumerate(results):
             self.add_message("agent", f"Analyzing content quality for: {result['url']}")
             
-            if self.openai_api_key:
-                result['ai_analysis'] = self._analyze_with_openai(result['title'], result['text_sample'], keyword_list)
-            elif self.gemini_api_key:
-                result['ai_analysis'] = self._analyze_with_gemini(result['title'], result['text_sample'], keyword_list)
+            result['ai_analysis'] = self._analyze_with_openai(result['title'], result['text_sample'], keyword_list)
             
             # Add keyword analysis if keywords provided
             if keyword_list:
@@ -581,6 +586,10 @@ class SEOAgent:
             
         except Exception as e:
             self.add_message("agent", f"⚠️ Error in Gemini analysis: {str(e)}")
+            # Fallback to OpenAI if available
+            if self.openai_api_key:
+                self.add_message("agent", "Gemini failed. Falling back to OpenAI for content analysis.")
+                return self._analyze_with_openai(title, content, keywords)
             return {"error": str(e)}
     
     def _analyze_keyword_presence(self, title, description, headings, content, keywords):
@@ -1057,8 +1066,6 @@ class SEOAgent:
             # Try to generate summary with OpenAI if available
             if self.openai_api_key:
                 return self._generate_summary_with_openai()
-            elif self.gemini_api_key:
-                return self._generate_summary_with_gemini()
             else:
                 # Generate a generic summary
                 return self._generate_generic_summary()
@@ -1109,40 +1116,44 @@ class SEOAgent:
     
     def _generate_summary_with_gemini(self):
         """Generate summary using Google's Gemini API"""
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        
-        # Prepare summary data
-        summary_data = {
-            "website": self.analysis_results["url"],
-            "overall_score": int(self.insights["overall_score"]),
-            "grade": self.insights["grade"],
-            "analyzed_pages": len(self.analysis_results["pages"]),
-            "avg_word_count": int(self.insights["avg_word_count"]),
-            "avg_load_time": f"{self.insights['avg_load_time']:.2f}s",
-            "top_issues": [f"{issue_type}: {count} pages" for issue_type, count in self.insights["top_issues"][:5]],
-            "action_plan": self.get_action_plan()
-        }
-        
-        # Create summary prompt
-        summary_prompt = f"""
-        Generate a concise SEO summary and action plan based on this data:
-        
-        {json.dumps(summary_data, indent=2)}
-        
-        Provide:
-        1. A brief overall assessment (2-3 sentences)
-        2. Top 3 strengths
-        3. Top 3 areas for improvement
-        4. A prioritized 3-step action plan
-        
-        Keep it concise and actionable.
-        """
-        response = client.models.generate_content(
-            model="gemini-pro",
-            contents=summary_prompt,
-        )
-        
-        return response.text
+        try:
+            client = genai.Client(api_key=GEMINI_API_KEY)
+            # Prepare summary data
+            summary_data = {
+                "website": self.analysis_results["url"],
+                "overall_score": int(self.insights["overall_score"]),
+                "grade": self.insights["grade"],
+                "analyzed_pages": len(self.analysis_results["pages"]),
+                "avg_word_count": int(self.insights["avg_word_count"]),
+                "avg_load_time": f"{self.insights['avg_load_time']:.2f}s",
+                "top_issues": [f"{issue_type}: {count} pages" for issue_type, count in self.insights["top_issues"][:5]],
+                "action_plan": self.get_action_plan()
+            }
+            # Create summary prompt
+            summary_prompt = f"""
+            Generate a concise SEO summary and action plan based on this data:
+            
+            {json.dumps(summary_data, indent=2)}
+            
+            Provide:
+            1. A brief overall assessment (2-3 sentences)
+            2. Top 3 strengths
+            3. Top 3 areas for improvement
+            4. A prioritized 3-step action plan
+            
+            Keep it concise and actionable.
+            """
+            response = client.models.generate_content(
+                model="gemini-pro",
+                contents=summary_prompt,
+            )
+            return response.text
+        except Exception as e:
+            self.add_message("agent", f"⚠️ Error generating summary with Gemini: {str(e)}")
+            if self.openai_api_key:
+                self.add_message("agent", "Gemini failed. Falling back to OpenAI for summary.")
+                return self._generate_summary_with_openai()
+            return self._generate_generic_summary()
     
     def _generate_generic_summary(self):
         """Generate a generic summary based on analysis data"""
@@ -1189,9 +1200,10 @@ class SEOAgent:
 
 # Main Streamlit App
 def main():
-    # Load CSS and create navbar
-    
-    
+    # Load CSS and create navbar after authentication
+    load_css()
+    create_navbar()
+
     st.title("AI SEO Agent")
     st.write("Your autonomous SEO analysis and optimization assistant")
     
@@ -1209,7 +1221,7 @@ def main():
         
         openai_key = OPENAI_API_KEY
         google_key = GOOGLE_API_KEY
-        gemini_key = GEMINI_API_KEY
+        gemini_key = ""  # Force OpenAI-only handling for AI features
         
         # Keep keys in session state
         if 'openai_key' not in st.session_state or st.session_state['openai_key'] != openai_key:
@@ -1240,21 +1252,19 @@ def main():
             
         if st.session_state['agent'].gemini_api_key != st.session_state.get('gemini_key', ''):
             st.session_state['agent'].gemini_api_key = st.session_state.get('gemini_key', '')
-            if st.session_state.get('gemini_key', ''):
-                genai.configure(api_key=st.session_state.get('gemini_key', ''))
         
         # Update agent capabilities
         st.session_state['agent'].capabilities = {
             "technical_seo": True,
-            "content_analysis": bool(st.session_state.get('openai_key', '') or st.session_state.get('gemini_key', '')),
+            "content_analysis": bool(st.session_state.get('openai_key', '')),
             "competitor_analysis": bool(st.session_state.get('google_key', '')),
-            "keyword_research": bool(st.session_state.get('google_key', '') or st.session_state.get('openai_key', '') or st.session_state.get('gemini_key', ''))
+            "keyword_research": bool(st.session_state.get('google_key', '') or st.session_state.get('openai_key', ''))
         }
         
         # Display agent capabilities
         st.subheader("Agent Capabilities")
         st.markdown(f"✅ Technical SEO Analysis")
-        st.markdown(f"{'✅' if st.session_state['agent'].capabilities['content_analysis'] else '❌'} Content Analysis")
+        st.markdown(f"{'✅' if st.session_state['agent'].capabilities['content_analysis'] else '❌'} Content Analysis (OpenAI)")
         st.markdown(f"{'✅' if st.session_state['agent'].capabilities['competitor_analysis'] else '❌'} Competitor Analysis")
         st.markdown(f"{'✅' if st.session_state['agent'].capabilities['keyword_research'] else '❌'} Keyword Research")
         
@@ -1267,7 +1277,7 @@ def main():
     # Main content area
     if st.session_state['analysis_complete']:
         # Show tabs for different sections
-        tab1, tab2, tab3, tab4 = st.tabs(["Analysis", "Recommendations", "Action Plan", "New Job"])
+        tab1, tab2, tab3, tab4 = st.tabs(["Analysis", "Recommendations", "Action Plan", "New Analysis"])
         
         # Set active tab based on session state
         if st.session_state['current_tab'] == "analysis":
@@ -1292,8 +1302,7 @@ def main():
             display_action_plan()
         
         with tab4:
-            st.session_state['current_tab'] = "chat"
-            # display_chat()
+            st.session_state['current_tab'] = "new_job"
             display_analysis_form()
     else:
         # Show analysis form
@@ -1305,13 +1314,29 @@ def display_analysis_form():
     st.subheader("Website Analysis")
     
     with st.form("seo_analysis_form"):
-        url = st.text_input("Website URL", "https://www.linkedin.com")
+        url = st.text_input(
+            "Website URL",
+            value="",
+            placeholder="https://www.example.com",
+            help="Enter the homepage or a starting URL to audit. We'll crawl internal links up to the page limit.",
+        )
         
         col1, col2 = st.columns([3, 1])
         with col1:
-            keywords = st.text_input("Target Keywords (comma separated)", "")
+            keywords = st.text_input(
+                "Target Keywords (comma separated)",
+                value="",
+                placeholder="e.g. seo audit, technical seo, site performance",
+                help="Optional. Improves keyword presence analysis and recommendations.",
+            )
         with col2:
-            page_limit = st.number_input("Page Limit", min_value=1, max_value=20, value=5)
+            page_limit = st.number_input(
+                "Page Limit",
+                min_value=1,
+                max_value=20,
+                value=5,
+                help="Maximum number of pages to crawl for this analysis.",
+            )
         
         analysis_depth = st.select_slider(
             "Analysis Depth",
@@ -1848,14 +1873,23 @@ def process_question_with_gemini(agent, question):
         return response.text
         
     except Exception as e:
+        # Fallback to OpenAI when available
+        if agent.openai_api_key:
+            agent.add_message("agent", f"⚠️ Gemini error: {str(e)}. Falling back to OpenAI for Q&A.")
+            return process_question_with_openai(agent, question)
         return f"Sorry, I encountered an error while processing your question: {str(e)}"
 
 if __name__ == '__main__':
-    password = st.text_input("Enter password to access the app:", type="password")
-    if password == "Napster":
-        st.session_state['password'] = password
-        main()
+    required_password = st.secrets.get("APP_PASSWORD", os.environ.get("APP_PASSWORD", ""))
+    if required_password:
+        password = st.text_input("Enter password to access the app:", type="password", help="Set APP_PASSWORD in Streamlit secrets or environment to manage access.")
+        if password == required_password:
+            st.session_state['password'] = password
+            main()
+        elif password:
+            st.error("Incorrect password. Please try again.")
+        else:
+            st.info("This app is protected. Please enter the password to continue.")
     else:
-        st.warning("Please enter the correct password to access the app.")
-    load_css()
-    create_navbar()
+        # No password configured; proceed directly
+        main()

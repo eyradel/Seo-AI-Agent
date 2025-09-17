@@ -87,3 +87,5 @@ webdriver-manager==4.0.2
 websocket-client==1.8.0
 websockets==14.2
 wsproto==1.2.0
+fastapi==0.115.6
+uvicorn==0.34.0

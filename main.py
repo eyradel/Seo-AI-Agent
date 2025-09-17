@@ -13,7 +13,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # We reuse the analysis engine from the Streamlit app
 # Note: importing app.py will import Streamlit; this is acceptable since it's in requirements
-from app import SEOAgent
+from seo_agent import SEOAgent
 
 
 class AnalysisDepth(str, Enum):
@@ -205,7 +205,7 @@ def _run_analysis(job_id: str, req: AnalyzeRequest):
 
 @app.get("/")
 def root() -> dict:
-    return RedirectResponse(url="/docs")
+    return {"status": "ok", "service": "seo-api"}
 
 
 @app.get("/health", response_model=HealthResponse)
